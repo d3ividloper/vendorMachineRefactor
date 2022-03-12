@@ -2,6 +2,14 @@
 
 namespace GetWith\CoffeeMachine\Console;
 
+use GetWith\CoffeeMachine\Application\UseCase\Chocolate\ChocolateCreate\ChocolateCreateRequest;
+use GetWith\CoffeeMachine\Application\UseCase\Chocolate\ChocolateCreate\ChocolateCreateUseCase;
+use GetWith\CoffeeMachine\Application\UseCase\Coffee\CoffeeCreate\CoffeCreateRequest;
+use GetWith\CoffeeMachine\Application\UseCase\Coffee\CoffeeCreate\CoffeeCreateUseCase;
+use GetWith\CoffeeMachine\Application\UseCase\Tea\TeaCreate\TeaCreateRequest;
+use GetWith\CoffeeMachine\Application\UseCase\Tea\TeaCreate\TeaCreateUseCase;
+use GetWith\CoffeeMachine\Domain\Drink;
+use GetWith\CoffeeMachine\Infrastucture\Service\CoffeeService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -50,7 +58,7 @@ class MakeDrinkCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $drinkType = strtolower($input->getArgument('drink-type'));
-        if (!in_array($drinkType, ['tea', 'coffee', 'chocolate'])) {
+        if (!in_array($drinkType, Drink::ALLOWED_DRINKS)) {
             $output->writeln('The drink type should be tea, coffee or chocolate.');
         } else {
             /**
@@ -59,44 +67,33 @@ class MakeDrinkCommand extends Command
              * Chocolate --> 0.6
              */
             $money = $input->getArgument('money');
+            $sugars = $input->getArgument('sugars');
+            $extraHot = $input->getOption('extra-hot');
+
             switch ($drinkType) {
                 case 'tea':
-                    if ($money < 0.4) {
-                        $output->writeln('The tea costs 0.4.');
-                        return 0;
-                    }
+                    $useCaseRequest = new TeaCreateRequest($money, $sugars, $extraHot);
+                    $useCase = new TeaCreateUseCase();
+                    $response = $useCase->run($useCaseRequest);
                     break;
                 case 'coffee':
-                    if ($money < 0.5) {
-                        $output->writeln('The coffee costs 0.5.');
-                        return 0;
-                    }
+                    $useCaseRequest = new CoffeCreateRequest($money, $sugars, $extraHot);
+                    $useCase = new CoffeeCreateUseCase();
+                    $response = $useCase->run($useCaseRequest);
                     break;
                 case 'chocolate':
-                    if ($money < 0.6) {
-                        $output->writeln('The chocolate costs 0.6.');
-                        return 0;
-                    }
+                    $useCaseRequest = new ChocolateCreateRequest($money, $sugars, $extraHot);
+                    $useCase = new ChocolateCreateUseCase();
+                    $response = $useCase->run($useCaseRequest);
                     break;
             }
 
-            $sugars = $input->getArgument('sugars');
-            $stick = false;
-            $extraHot = $input->getOption('extra-hot');
-            if ($sugars >= 0 && $sugars <= 2) {
-                $output->write('You have ordered a ' . $drinkType);
-                if ($extraHot) {
-                    $output->write(' extra hot');
-                }
-
-                if ($sugars > 0) {
-                    $stick = true;
-                    $output->write(' with ' . $sugars . ' sugars (stick included)');
-                }
-                $output->writeln('');
-            } else {
-                $output->writeln('The number of sugars should be between 0 and 2.');
+            if (!empty($response->error)) {
+                $output->writeln($response->error);
+                return 0;
             }
+
+            $output->writeln($response->success);
         }
 
         return 0;
